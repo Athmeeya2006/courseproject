@@ -3,5 +3,6 @@
 
 #include "common.h"
 #include "config.h"
+#include "model.h"
 
 #endif

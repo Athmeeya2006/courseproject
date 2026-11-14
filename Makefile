@@ -7,7 +7,8 @@
 
 CC ?= cc
 
-CSTD := -std=c23
+# C11 is supported by every GCC >= 4.7 and Clang >= 3.1. Do NOT use C23-only features.
+CSTD := -std=c11
 POSIX := -D_POSIX_C_SOURCE=200809L
 
 # strict POSIX hides _SC_NPROCESSORS_ONLN and _SC_PHYS_PAGES on macOS
@@ -17,25 +18,26 @@ else
   POSIX += -D_DEFAULT_SOURCE
 endif
 
-WARNINGS := -Wall -Wextra -Wpedantic \
+# Probe each warning flag so old/new GCC and Clang never fail on an unknown option.
+cc-option = $(shell echo 'int x;' | $(CC) $(1) -Werror -x c -c - -o /dev/null >/dev/null 2>&1 && echo $(1))
+
+WANT_WARNINGS := -Wall -Wextra -Wpedantic \
             -Wshadow -Wconversion -Wsign-conversion -Wdouble-promotion \
             -Wcast-qual -Wcast-align -Wpointer-arith -Wbad-function-cast \
             -Wstrict-prototypes -Wmissing-prototypes -Wmissing-declarations \
             -Wold-style-definition -Wredundant-decls -Wnested-externs \
             -Wwrite-strings -Wformat=2 -Wundef -Wfloat-equal -Wvla \
-            -Wswitch-enum -Wimplicit-fallthrough -Wnull-dereference
+            -Wswitch-enum -Wimplicit-fallthrough -Wnull-dereference \
+            -Wshorten-64-to-32 -Wcomma -Wassign-enum \
+            -Wconditional-uninitialized -Wloop-analysis \
+            -Wunreachable-code-aggressive \
+            -Wlogical-op -Wduplicated-cond -Wduplicated-branches \
+            -Wjump-misses-init -Wformat-signedness \
+            -Wformat-overflow=2 -Wformat-truncation=2 \
+            -Wstringop-overflow=4 -Wcast-align=strict \
+            -Wtrampolines -Wmissing-include-dirs
 
-ifneq ($(shell $(CC) --version 2>/dev/null | grep -i clang),)
-  WARNINGS += -Wshorten-64-to-32 -Wcomma -Wassign-enum \
-              -Wconditional-uninitialized -Wloop-analysis \
-              -Wunreachable-code-aggressive
-else
-  WARNINGS += -Wlogical-op -Wduplicated-cond -Wduplicated-branches \
-              -Wjump-misses-init -Wformat-signedness \
-              -Wformat-overflow=2 -Wformat-truncation=2 \
-              -Wstringop-overflow=4 -Wcast-align=strict \
-              -Wtrampolines -Wmissing-include-dirs
-endif
+WARNINGS := $(foreach w,$(WANT_WARNINGS),$(call cc-option,$(w)))
 
 CFLAGS   ?= -O2
 CPPFLAGS += -Iinclude -MMD -MP $(POSIX)

@@ -22,6 +22,8 @@ struct sched_addr {
 
 #include "args.h"
 #include "log.h"
+#include "net.h"
+#include "proto.h"
 #include "states.h"
 
 #endif
