@@ -7,8 +7,9 @@
 
 CC ?= cc
 
-# C11 is supported by every GCC >= 4.7 and Clang >= 3.1. Do NOT use C23-only features.
-CSTD := -std=c11
+# C23. GCC >= 14 / Clang >= 18 call it -std=c23; GCC 9-13 / Clang 9-17 only know the
+# older name -std=c2x (same standard, draft name). Use whichever this compiler accepts.
+CSTD := $(shell echo 'int x;' | $(CC) -std=c23 -x c -c - -o /dev/null >/dev/null 2>&1 && echo -std=c23 || echo -std=c2x)
 POSIX := -D_POSIX_C_SOURCE=200809L
 
 # strict POSIX hides _SC_NPROCESSORS_ONLN and _SC_PHYS_PAGES on macOS

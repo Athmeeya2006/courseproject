@@ -166,10 +166,14 @@ sudo OSN_CACHE_DIR=/tmp/w1 ./bin/worker ...                     # test privilege
 
 Last audited: 2026-11-14 (after Part 1 work, uncommitted at the time of writing).
 
-- [x] Makefile builds `bin/scheduler`, `bin/client` and `bin/worker` with **zero warnings on any
-      GCC/Clang**: pinned to `-std=c11`, and each warning flag is probed (`cc-option`), so
-      compilers that don't know a flag just skip it. **Write C11 only: no C23 features**
-      (`nullptr`, `constexpr`, `typeof`, `[[attributes]]`, `bool` without `<stdbool.h>`, …).
+- [x] Makefile builds `bin/scheduler`, `bin/client` and `bin/worker` with **zero warnings**.
+      Standard is **C23** (team decision): `-std=c23` on GCC ≥ 14 / Clang ≥ 18, automatically
+      falling back to `-std=c2x` on GCC 9–13 / Clang 9–17. Each warning flag is probed
+      (`cc-option`), so compilers that don't know a flag just skip it.
+      ⚠️ Older compilers in `-std=c2x` mode don't support every C23 feature. **Before using a
+      C23-only feature** (`nullptr`, `constexpr`, `typeof`, `[[attributes]]`, `bool` without
+      `<stdbool.h>`, `#embed`, …), check it builds with **GCC 13** (`make clean && make CC=gcc-13`),
+      or skip it. Teammates on macOS: run `clang --version`; Apple Clang ≥ 11 accepts `-std=c2x`.
 - [x] `include/log.c`: `log_set_tag()`, `log_line()` with `[HH:MM:SS] [TAG]`
 - [x] `include/args.c`: `parse_int`, `parse_port`, `parse_sched_addr`, `username_valid`
 - [x] `include/states.h`: full `job_state` and `worker_state` enums
@@ -194,8 +198,8 @@ Last audited: 2026-11-14 (after Part 1 work, uncommitted at the time of writing)
 ## Part 1 — Build fixes and shared protocol · `🚧 IN PROGRESS (1 item left)`
 *Foundation. Everything else depends on this.*
 
-- [x] Makefile builds on any GCC/Clang with zero errors and zero warnings (`-std=c11` + probed
-      warning flags). Verified on GCC 13.3.
+- [x] Makefile builds with zero errors and zero warnings in C23 (`-std=c23`, or `-std=c2x` on older
+      compilers) with probed warning flags. Verified on GCC 13.3 (`c2x`) and GCC 14.2 (`c23`).
 - [x] Add a `.gitignore` for `build/` and `bin/`.
 - [ ] **Team decision needed.** Decide where the executables end up. The spec runs
       `./scheduler`, `./worker` and `./client`, but the root already has source folders called
