@@ -69,6 +69,99 @@ Commit rules (graded: bad commits are penalised; commits show who did what):
 
 ---
 
+## 1a. What we're building (the 30-second overview)
+
+A small compute cluster in C, made of three programs:
+- **`scheduler`**: the central server. It holds the job queue (≤1024), the worker table and the
+  cron templates, decides which worker runs which job, relays output to clients, and pushes
+  `[Event]` lines to job owners. It answers UDP discovery broadcasts.
+- **`worker`**: one per machine (or several per machine for testing). It finds the scheduler
+  via UDP, registers its cores/RAM/GPUs, sends heartbeats every 2 s, runs assigned jobs in
+  isolated, limited child processes, and streams their output back.
+- **`client`**: an interactive `client>` prompt for a logged-in user (`nodes`, `submit`,
+  `status`, `logs [-f]`, `cancel`, later `migrate`, `crons`, `cancel-cron`).
+
+**Binary transfer:** the client and the scheduler are on the same machine (or share a
+filesystem). `submit ./prog` sends the **path**; the **scheduler** reads the file and sends its
+bytes to the chosen worker over TCP (cached by hash in Part 11). If the name is a bare PATH
+command (e.g. `ls`), nothing is transferred and the worker runs it by name.
+
+## 1b. State machines (design for all states from day one)
+
+Job states (`include/states.h`):
+
+| State | Meaning |
+|---|---|
+| `WAITING` | has unmet dependencies; not in the scheduling pass (Part 8) |
+| `QUEUED` | waiting for a worker with free resources |
+| `RUNNING` | executing on a worker |
+| `COMPLETED` | exit code 0 |
+| `FAILED` | non-zero exit, signal, timeout, etc. (with a diagnosis) |
+| `CANCELLED` | by a user, or because a dependency failed (cascades) |
+| `LOST` | transient: was RUNNING on a worker that went DEAD → becomes QUEUED or FAILED_PERMANENT |
+| `FAILED_PERMANENT` | used up all 3 attempts after worker deaths |
+
+Allowed job transitions: WAITING→QUEUED (deps done) · WAITING→CANCELLED (cancel or dep failed) ·
+QUEUED→RUNNING (picked) · QUEUED→CANCELLED · RUNNING→COMPLETED/FAILED/CANCELLED ·
+RUNNING→LOST→QUEUED (worker DEAD, attempt+1) · LOST→FAILED_PERMANENT (3rd attempt) ·
+RUNNING→QUEUED via **preemption or migration, which do NOT use up an attempt**.
+
+Worker states: ALIVE → SUSPECTED (1 missed heartbeat) → DEAD (3 in a row, ~6 s);
+SUSPECTED → ALIVE when a heartbeat arrives; ALIVE → DRAINING (`drain` / Ctrl+C) → finishes its
+jobs, then disconnects and exits (not a failure). Only ALIVE workers get new jobs.
+
+## 1c. Code map and conventions
+
+```
+Makefile            builds bin/{scheduler,client,worker}; every *.c in a program's folder and
+                    in include/ is picked up automatically (wildcard), so no Makefile edits are
+                    needed for new files
+include/            shared by all three programs (compiled into each binary)
+  common.h          include this first: std headers + every shared header below
+  proto.h           wire protocol: message types, payload layouts, ALL spec constants
+  net.c/.h          write_all/read_all, proto_send/proto_recv, buf_put_* / reader_*
+  log.c/.h          log_set_tag("WORKER %u", id) once the tag changes; log_line(fmt, ...)
+  args.c/.h         parse_int, parse_port, parse_sched_addr, username_valid
+  states.h          enum job_state, enum worker_state
+scheduler/          scheduler.c (main), config.c (CLI), model.h (job/worker/cron structs)
+worker/             worker.c (main), config.c (CLI + clamping), hostinfo.c (cores/RAM)
+client/             client.c (main), config.c (CLI), login.c (username prompt)
+```
+Rules:
+- Each program's main header (`scheduler.h`, `worker.h`, `client.h`) includes system headers,
+  then `common.h`, then its own headers; `.c` files include only that main header. Each program has its
+  own `config.h`/`struct config`. Don't move those into `include/`.
+- Put new code in a new file by concern (e.g. `scheduler/queue.c`, `scheduler/sched_pass.c`,
+  `worker/runner.c`, `worker/telemetry.c`, `client/commands.c`, `include/discovery.c`). Don't
+  grow `main()`.
+- The strict warnings (`-Wconversion`, `-Wsign-conversion`, `-Wshadow`, …) must stay at
+  **zero**. Use explicit casts and fixed-width types from `proto.h`; non-static functions need
+  a prototype in a header.
+- Feature macros already set: `_POSIX_C_SOURCE=200809L` plus `_DEFAULT_SOURCE` (Linux) /
+  `_DARWIN_C_SOURCE` (macOS). Guard OS-specific code with `#ifdef __APPLE__` / `#ifdef __linux__`.
+- Scheduler logs use the tag `SCHEDULER`; the worker uses `WORKER` before registration and
+  `WORKER <id>` after. Client output is plain `printf` (`[Client] ...`, `[Event] ...`), not `log_line`.
+- Never send raw structs over the network; serialize with `buf_put_*` and parse with `reader_*`,
+  checking `r.failed`.
+
+## 1d. How to run and test locally
+
+```
+make
+./bin/scheduler 8080 PRIORITY                                   # terminal 1
+OSN_CACHE_DIR=/tmp/w1 ./bin/worker 127.0.0.1 8080 -cores 4 -ram 2048   # terminal 2
+OSN_CACHE_DIR=/tmp/w2 ./bin/worker 127.0.0.1 8080 -cores 2 -ram 1024   # terminal 3 (second worker)
+./bin/client 127.0.0.1 8080 -user lordz                         # terminal 4
+sudo OSN_CACHE_DIR=/tmp/w1 ./bin/worker ...                     # test privilege dropping (TA uses sudo)
+```
+- Kill a worker with `kill -9 <pid>` to test SUSPECTED → DEAD → rescue; use `drain` / Ctrl+C
+  to test draining.
+- Keep small test programs (infinite loop, segfault, divide by zero, memory leak, one line per
+  second, checkpointing counter, ~0.7 MB binaries for the cache test) in a `tests/` folder.
+- For discovery across machines, use a personal hotspot and a unique `-discovery-port`.
+
+---
+
 ## 2. Current state of the repo (update this when you finish a part)
 
 Last audited: 2026-11-14 (after Part 1 work, uncommitted at the time of writing).
