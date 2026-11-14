@@ -164,7 +164,7 @@ sudo OSN_CACHE_DIR=/tmp/w1 ./bin/worker ...                     # test privilege
 
 ## 2. Current state of the repo (update this when you finish a part)
 
-Last audited: 2026-11-14 (after Part 1 work, uncommitted at the time of writing).
+Last audited: 2026-11-14 at commit `3aea956` (Part 1 work + C23 build committed).
 
 - [x] Makefile builds `bin/scheduler`, `bin/client` and `bin/worker` with **zero warnings**.
       Standard is **C23** (team decision): `-std=c23` on GCC ≥ 14 / Clang ≥ 18, automatically
