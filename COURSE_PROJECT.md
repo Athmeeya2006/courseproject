@@ -121,7 +121,8 @@ include/            shared by all three programs (compiled into each binary)
   log.c/.h          log_set_tag("WORKER %u", id) once the tag changes; log_line(fmt, ...)
   args.c/.h         parse_int, parse_port, parse_sched_addr, username_valid
   states.h          enum job_state, enum worker_state
-src/scheduler/      scheduler.c (main), config.c (CLI), model.h (job/worker/cron structs)
+  discovery.c/.h    UDP discovery: responder (scheduler); lookup (worker/client) comes next
+src/scheduler/      scheduler.c (main), config.c (CLI), server.c (TCP listen), model.h (job/worker/cron structs)
 src/worker/         worker.c (main), config.c (CLI + clamping), hostinfo.c (cores/RAM)
 src/client/         client.c (main), config.c (CLI), login.c (username prompt)
 ```
@@ -214,11 +215,11 @@ Last audited: 2026-11-20 (sources moved to `src/`, binaries built in the root; P
 - [x] Job and worker structs (`scheduler/model.h`) carry fields for every later section.
       Discovery uses UDP text: request `OSN_DISCOVER`, reply `OSN_SCHEDULER <tcp_port>`.
 
-## Part 2 — Starting the system and discovery (Sec 2, 25 marks) · `⬜ TODO`
-- [ ] **2A** `./scheduler <port> <FIFO|PRIORITY> [-discovery-port <port>]` (default 9999) prints:
+## Part 2 — Starting the system and discovery (Sec 2, 25 marks) · `🚧 IN PROGRESS`
+- [x] **2A** `./scheduler <port> <FIFO|PRIORITY> [-discovery-port <port>]` (default 9999) prints:
       `[SCHEDULER] Started on port 8080. Algorithm: PRIORITY`, then
       `Discovery responder listening on UDP port 9999.`, then `Listening for incoming connections...`
-- [ ] **2C** Scheduler UDP discovery responder, bound with `SO_REUSEADDR` / `SO_REUSEPORT`,
+- [x] **2C** Scheduler UDP discovery responder, bound with `SO_REUSEADDR` / `SO_REUSEPORT`,
       replies with its TCP address and port.
 - [ ] **2C** Discovery client (shared by worker and client): UDP broadcast, wait ≤2 s, up to 3
       tries. Fall back to the CLI address only after all tries fail; if there's no fallback,
