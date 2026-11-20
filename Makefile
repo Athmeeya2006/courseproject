@@ -46,38 +46,34 @@ LDFLAGS  ?=
 LDLIBS   ?=
 
 BUILD := build
-BIN   := bin
+# The spec runs ./scheduler, ./worker and ./client from the project root, so the
+# binaries are built here (the sources live in src/ to avoid a name clash).
+PROGS := scheduler client worker
 
 COMMON_SRCS := $(wildcard include/*.c)
 COMMON_OBJS := $(COMMON_SRCS:%.c=$(BUILD)/%.o)
 
-SCHED_SRCS  := $(wildcard scheduler/*.c)
-CLIENT_SRCS := $(wildcard client/*.c)
-WORKER_SRCS := $(wildcard worker/*.c)
+SCHED_SRCS  := $(wildcard src/scheduler/*.c)
+CLIENT_SRCS := $(wildcard src/client/*.c)
+WORKER_SRCS := $(wildcard src/worker/*.c)
 
 SCHED_OBJS  := $(SCHED_SRCS:%.c=$(BUILD)/%.o)  $(COMMON_OBJS)
 CLIENT_OBJS := $(CLIENT_SRCS:%.c=$(BUILD)/%.o) $(COMMON_OBJS)
 WORKER_OBJS := $(WORKER_SRCS:%.c=$(BUILD)/%.o) $(COMMON_OBJS)
 
-.PHONY: all sch scheduler client worker clean
+.PHONY: all sch clean
 
-all: scheduler client worker
+all: $(PROGS)
 
-sch:       scheduler
-scheduler: $(BIN)/scheduler
-client:    $(BIN)/client
-worker:    $(BIN)/worker
+sch: scheduler
 
-$(BIN)/scheduler: $(SCHED_OBJS)
-	@mkdir -p $(@D)
+scheduler: $(SCHED_OBJS)
 	$(CC) $(LDFLAGS) $^ $(LDLIBS) -o $@
 
-$(BIN)/client: $(CLIENT_OBJS)
-	@mkdir -p $(@D)
+client: $(CLIENT_OBJS)
 	$(CC) $(LDFLAGS) $^ $(LDLIBS) -o $@
 
-$(BIN)/worker: $(WORKER_OBJS)
-	@mkdir -p $(@D)
+worker: $(WORKER_OBJS)
 	$(CC) $(LDFLAGS) $^ $(LDLIBS) -o $@
 
 $(BUILD)/%.o: %.c
@@ -85,6 +81,7 @@ $(BUILD)/%.o: %.c
 	$(CC) $(CSTD) $(CPPFLAGS) $(WARNINGS) $(CFLAGS) -c $< -o $@
 
 clean:
-	rm -rf $(BUILD) $(BIN)
+	rm -rf $(BUILD) bin
+	rm -f $(PROGS)
 
 -include $(SCHED_OBJS:.o=.d) $(CLIENT_OBJS:.o=.d) $(WORKER_OBJS:.o=.d)

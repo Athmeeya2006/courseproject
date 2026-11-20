@@ -19,7 +19,7 @@
 
 Steps for each part (a reminder list: follow it every time, no need to tick it in the file):
 - [ ] 1. The teammate runs `git pull`. Someone else may have finished a part since you last looked.
-- [ ] 1b. Run `make`. `build/` and `bin/` are **generated and gitignored on purpose**: they
+- [ ] 1b. Run `make`. `build/` and the root binaries `./scheduler`, `./worker`, `./client` are **generated and gitignored on purpose**: they
       never come from git, so always build locally after pulling. Never commit them.
 - [ ] 2. Find the **first Part below whose header is not `✅ DONE`**. Parts are in dependency
       order. Don't start a later part while an earlier one is unfinished, unless its header
@@ -111,7 +111,7 @@ jobs, then disconnects and exits (not a failure). Only ALIVE workers get new job
 ## 1c. Code map and conventions
 
 ```
-Makefile            builds bin/{scheduler,client,worker}; every *.c in a program's folder and
+Makefile            builds ./scheduler, ./client, ./worker in the root; every *.c in a program's folder and
                     in include/ is picked up automatically (wildcard), so no Makefile edits are
                     needed for new files
 include/            shared by all three programs (compiled into each binary)
@@ -121,16 +121,16 @@ include/            shared by all three programs (compiled into each binary)
   log.c/.h          log_set_tag("WORKER %u", id) once the tag changes; log_line(fmt, ...)
   args.c/.h         parse_int, parse_port, parse_sched_addr, username_valid
   states.h          enum job_state, enum worker_state
-scheduler/          scheduler.c (main), config.c (CLI), model.h (job/worker/cron structs)
-worker/             worker.c (main), config.c (CLI + clamping), hostinfo.c (cores/RAM)
-client/             client.c (main), config.c (CLI), login.c (username prompt)
+src/scheduler/      scheduler.c (main), config.c (CLI), model.h (job/worker/cron structs)
+src/worker/         worker.c (main), config.c (CLI + clamping), hostinfo.c (cores/RAM)
+src/client/         client.c (main), config.c (CLI), login.c (username prompt)
 ```
 Rules:
 - Each program's main header (`scheduler.h`, `worker.h`, `client.h`) includes system headers,
   then `common.h`, then its own headers; `.c` files include only that main header. Each program has its
   own `config.h`/`struct config`. Don't move those into `include/`.
-- Put new code in a new file by concern (e.g. `scheduler/queue.c`, `scheduler/sched_pass.c`,
-  `worker/runner.c`, `worker/telemetry.c`, `client/commands.c`, `include/discovery.c`). Don't
+- Put new code in a new file by concern (e.g. `src/scheduler/queue.c`, `src/scheduler/sched_pass.c`,
+  `src/worker/runner.c`, `src/worker/telemetry.c`, `src/client/commands.c`, `include/discovery.c`). Don't
   grow `main()`.
 - The strict warnings (`-Wconversion`, `-Wsign-conversion`, `-Wshadow`, …) must stay at
   **zero**. Use explicit casts and fixed-width types from `proto.h`; non-static functions need
@@ -146,11 +146,11 @@ Rules:
 
 ```
 make
-./bin/scheduler 8080 PRIORITY                                   # terminal 1
-OSN_CACHE_DIR=/tmp/w1 ./bin/worker 127.0.0.1 8080 -cores 4 -ram 2048   # terminal 2
-OSN_CACHE_DIR=/tmp/w2 ./bin/worker 127.0.0.1 8080 -cores 2 -ram 1024   # terminal 3 (second worker)
-./bin/client 127.0.0.1 8080 -user lordz                         # terminal 4
-sudo OSN_CACHE_DIR=/tmp/w1 ./bin/worker ...                     # test privilege dropping (TA uses sudo)
+./scheduler 8080 PRIORITY                                   # terminal 1
+OSN_CACHE_DIR=/tmp/w1 ./worker 127.0.0.1 8080 -cores 4 -ram 2048   # terminal 2
+OSN_CACHE_DIR=/tmp/w2 ./worker 127.0.0.1 8080 -cores 2 -ram 1024   # terminal 3 (second worker)
+./client 127.0.0.1 8080 -user lordz                         # terminal 4
+sudo OSN_CACHE_DIR=/tmp/w1 ./worker ...                     # test privilege dropping (TA uses sudo)
 ```
 - Kill a worker with `kill -9 <pid>` to test SUSPECTED → DEAD → rescue; use `drain` / Ctrl+C
   to test draining.
@@ -162,9 +162,9 @@ sudo OSN_CACHE_DIR=/tmp/w1 ./bin/worker ...                     # test privilege
 
 ## 2. Current state of the repo (update this when you finish a part)
 
-Last audited: 2026-11-14 at commit `3aea956` (Part 1 work + C23 build committed).
+Last audited: 2026-11-20 (sources moved to `src/`, binaries built in the root; Part 1 done).
 
-- [x] Makefile builds `bin/scheduler`, `bin/client` and `bin/worker` with **zero warnings**.
+- [x] Makefile builds `./scheduler`, `./client` and `./worker` (project root) with **zero warnings**.
       Standard is **C23** (team decision): `-std=c23` on GCC ≥ 14 / Clang ≥ 18, automatically
       falling back to `-std=c2x` on GCC 9–13 / Clang 9–17. Each warning flag is probed
       (`cc-option`), so compilers that don't know a flag just skip it.
@@ -180,7 +180,7 @@ Last audited: 2026-11-14 at commit `3aea956` (Part 1 work + C23 build committed)
 - [x] `client/config.c` + `login.c`: parse args, `-user`, username prompt that re-asks
 - [ ] Networking, discovery, protocol, scheduling, job execution: not started. Each `main()`
       only prints its parsed config (`// todo`).
-- [x] `.gitignore` (`build/`, `bin/`, `*.o`, `*.d`, `cache/`)
+- [x] `.gitignore` (`build/`, `bin/`, `/scheduler`, `/worker`, `/client`, `*.o`, `*.d`, `cache/`)
 - [x] `include/proto.h`: wire protocol (frame = u32 type + u32 len, big-endian, then payload),
       every message type with its payload layout documented, all spec constants
       (`JOB_QUEUE_CAPACITY`, `MAX_ATTEMPTS`, heartbeat timings, …), `struct job_spec`,
@@ -193,18 +193,15 @@ Last audited: 2026-11-14 at commit `3aea956` (Part 1 work + C23 build committed)
 
 ---
 
-## Part 1 — Build fixes and shared protocol · `🚧 IN PROGRESS (1 item left)`
+## Part 1 — Build fixes and shared protocol · `✅ DONE`
 *Foundation. Everything else depends on this.*
 
 - [x] Makefile builds with zero errors and zero warnings in C23 (`-std=c23`, or `-std=c2x` on older
       compilers) with probed warning flags. Verified on GCC 13.3 (`c2x`) and GCC 14.2 (`c23`).
 - [x] Add a `.gitignore` for `build/` and `bin/`.
-- [ ] **Team decision needed.** Decide where the executables end up. The spec runs
-      `./scheduler`, `./worker` and `./client`, but the root already has source folders called
-      `scheduler/`, `worker/` and `client/`, so binaries **can't** go in the root as-is. Options:
-      (a) keep `bin/` and run as `cd bin && ./scheduler ...`; (b) move the sources to
-      `src/scheduler`, `src/worker`, `src/client` and set `BIN := .`, so `make` drops `./scheduler`
-      etc. in the root. (b) matches the spec exactly. Ask the team before choosing.
+- [x] Executables end up in the project root as `./scheduler`, `./worker`, `./client`, matching
+      the spec's command lines. Sources moved to `src/scheduler`, `src/worker`, `src/client` (a
+      file and a folder can't share a name). `make clean` removes them.
 - [x] Create the shared protocol header: `include/proto.h`, included via `common.h`.
 - [x] Define the wire protocol in that header: frame header (type + length) and a message type
       for every exchange in every section (register/ack, heartbeat + telemetry, hello, submit

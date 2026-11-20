@@ -1,5 +1,8 @@
 build/
 bin/
+/scheduler
+/worker
+/client
 *.o
 *.d
 cache/
