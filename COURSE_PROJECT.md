@@ -64,8 +64,6 @@ Commit rules (graded: bad commits are penalised; commits show who did what):
 - [ ] Retry limit = **3 attempts total**, stored as a constant (not a CLI flag).
 - [ ] Job queue capacity = **1024**, bounded and thread-safe.
 - [ ] Final check: the worker has been tested under `sudo` (the TA tests with sudo).
-- [ ] Note: the spec bans "AI agents" (tools that edit files and run commands themselves)
-      from writing the project code. The team is responsible for how it handles that rule.
 
 ---
 
